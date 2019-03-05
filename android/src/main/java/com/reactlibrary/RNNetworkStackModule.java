@@ -7,27 +7,25 @@ import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
-import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.MulticastSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
+import java.net.SocketAddress;
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-
-import javax.annotation.Nullable;
 
 /**
  * Interface to the JavaScript code.
@@ -38,6 +36,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
     class SocketInfo {
         Socket socket;
         ServerSocket server;
+        MulticastSocket udpSocket;
         ExecutorService readThread = Executors.newSingleThreadExecutor();
         ExecutorService writeThread = Executors.newSingleThreadExecutor();
     }
@@ -57,6 +56,19 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
     @Override
     public String getName() {
         return "RNNetworkStack";
+    }
+
+    @Override
+    public void onCatalystInstanceDestroy() {
+        super.onCatalystInstanceDestroy();
+
+        // Remove all current sockets
+        synchronized (socketInfo) {
+            for (Integer key : socketInfo.keySet()) {
+                socketClose(key, null);
+            }
+        }
+
     }
 
     // Connects to a remote socket
@@ -88,8 +100,8 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
                         map.putInt("id", id);
                         map.putInt("localPort", si.socket.getLocalPort());
                         map.putInt("remotePort", si.socket.getPort());
-                        map.putString("localAddress", si.socket.getLocalAddress().toString());
-                        map.putString("remoteAddress", si.socket.getInetAddress().toString());
+                        map.putString("localAddress", si.socket.getLocalAddress().getHostAddress());
+                        map.putString("remoteAddress", si.socket.getInetAddress().getHostAddress());
                         promise.resolve(map);
 
                     }
@@ -266,8 +278,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
 
                         // Put it into the output buffer
                         outputBuffer = new byte[len];
-                        for (int i = 0 ; i < outputBuffer.length ; i++)
-                            outputBuffer[i] = bfr[i];
+                        System.arraycopy(bfr, 0, outputBuffer, 0, len);
 
                     }
 
@@ -400,13 +411,14 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
     }
 
     // Closes the socket
-    @ReactMethod public void tcpClose(final int id,
-                                      final Promise promise) {
+    @ReactMethod public void socketClose(final int id,
+                                         final Promise promise) {
 
         // Get socket info
         final SocketInfo si = socketInfo.get(id);
         if (si == null) {
-            promise.resolve(null);
+            if (promise != null)
+                promise.resolve(null);
             return;
         }
 
@@ -426,18 +438,24 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
                     if (si.server != null && !si.server.isClosed())
                         si.server.close();
 
+                    // Close UDP socket
+                    if (si.udpSocket != null && !si.udpSocket.isClosed())
+                        si.udpSocket.close();
+
                     // Remove it
                     synchronized (socketInfo) {
                         socketInfo.remove(id);
                     }
 
                     // Done
-                    promise.resolve(null);
+                    if (promise != null)
+                        promise.resolve(null);
 
                 } catch (Exception e) {
 
                     // Report error
-                    promise.reject(e);
+                    if (promise != null)
+                        promise.reject(e);
 
                 }
 
@@ -474,7 +492,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
                         WritableMap map = Arguments.createMap();
                         map.putInt("id", id);
                         map.putInt("localPort", si.server.getLocalPort());
-                        map.putString("localAddress", si.server.getInetAddress().toString());
+                        map.putString("localAddress", si.server.getInetAddress().getHostAddress());
                         promise.resolve(map);
 
                     }
@@ -529,11 +547,225 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
                         map.putInt("id", id);
                         map.putInt("localPort", si2.socket.getLocalPort());
                         map.putInt("remotePort", si2.socket.getPort());
-                        map.putString("localAddress", si2.socket.getLocalAddress().toString());
-                        map.putString("remoteAddress", si2.socket.getInetAddress().toString());
+                        map.putString("localAddress", si2.socket.getLocalAddress().getHostAddress());
+                        map.putString("remoteAddress", si2.socket.getInetAddress().getHostAddress());
                         promise.resolve(map);
 
                     }
+
+                } catch (Exception e) {
+
+                    // Report error
+                    promise.reject(e);
+
+                }
+
+            }
+        });
+
+    }
+
+    // Create a new UDP socket that binds to the specified port
+    @ReactMethod public void udpBind(final int port,
+                                     final boolean broadcast,
+                                     final boolean reuse,
+                                     final Promise promise) {
+
+        // Create socket info
+        final SocketInfo si = new SocketInfo();
+
+        // Start a background operation
+        si.writeThread.execute(new Runnable() {
+            @Override
+            public void run() {
+
+                // Catch errors
+                try {
+
+                    // Create socket
+                    si.udpSocket = new MulticastSocket(port);
+
+                    // Set params
+                    if (broadcast) si.udpSocket.setBroadcast(true);
+                    if (reuse) si.udpSocket.setReuseAddress(true);
+
+                    // Store it and return ID
+                    synchronized (socketInfo) {
+
+                        // Store it
+                        int id = nextSocketID++;
+                        socketInfo.put(id, si);
+
+                        // Create and return info
+                        WritableMap map = Arguments.createMap();
+                        map.putInt("id", id);
+                        map.putInt("localPort", si.udpSocket.getLocalPort());
+                        map.putString("localAddress", si.udpSocket.getLocalAddress().toString());
+                        promise.resolve(map);
+
+                    }
+
+                } catch (Exception e) {
+
+                    // Report error
+                    promise.reject(e);
+
+                }
+
+            }
+        });
+
+    }
+
+    // Read a data packet from the UDP socket
+    @ReactMethod public void udpRead(final int id,
+                                     final Promise promise) {
+
+        // Get socket info
+        final SocketInfo si = socketInfo.get(id);
+        if (si == null) {
+            promise.reject("socket-closed", "This socket has been closed.");
+            return;
+        }
+
+        // Start a background operation
+        si.readThread.execute(new Runnable() {
+            @Override
+            public void run() {
+
+                // Catch errors
+                try {
+
+                    // Read it
+                    byte[] buffer = new byte[1024*32];
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                    si.udpSocket.receive(packet);
+
+                    // Convert data to requested format (only UTF8 currently supported)
+                    String output = new String(buffer, 0, packet.getLength(), "UTF-8");
+
+                    // Create output info
+                    WritableMap map = Arguments.createMap();
+                    map.putString("data", output);
+                    map.putString("senderAddress", packet.getAddress().getHostAddress());
+                    map.putInt("senderPort", packet.getPort());
+                    promise.resolve(map);
+
+                } catch (Exception e) {
+
+                    // Report error
+                    promise.reject(e);
+
+                }
+
+            }
+        });
+
+    }
+
+    // Sends a data packet from the UDP socket to a remote device
+    @ReactMethod public void udpSend(final int id,
+                                     final String address,
+                                     final int port,
+                                     final String data,
+                                     final Promise promise) {
+
+        // Get socket info
+        final SocketInfo si = socketInfo.get(id);
+        if (si == null) {
+            promise.reject("socket-closed", "This socket has been closed.");
+            return;
+        }
+
+        // Start a background operation
+        si.writeThread.execute(new Runnable() {
+            @Override
+            public void run() {
+
+                // Catch errors
+                try {
+
+                    // Convert data
+                    byte[] buffer = data.getBytes("UTF-8");
+
+                    // Create packet
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length, InetAddress.getByName(address), port);
+
+                    // Send the packet
+                    si.udpSocket.send(packet);
+                    promise.resolve(buffer.length);
+
+                } catch (Exception e) {
+
+                    // Report error
+                    promise.reject(e);
+
+                }
+
+            }
+        });
+
+    }
+
+    // Joins a multicast group
+    @ReactMethod public void udpJoin(final int id,
+                                     final String address,
+                                     final Promise promise) {
+
+        // Get socket info
+        final SocketInfo si = socketInfo.get(id);
+        if (si == null) {
+            promise.reject("socket-closed", "This socket has been closed.");
+            return;
+        }
+
+        // Start a background operation
+        si.writeThread.execute(new Runnable() {
+            @Override
+            public void run() {
+
+                // Catch errors
+                try {
+
+                    // Join the group
+                    si.udpSocket.joinGroup(InetAddress.getByName(address));
+                    promise.resolve(null);
+
+                } catch (Exception e) {
+
+                    // Report error
+                    promise.reject(e);
+
+                }
+
+            }
+        });
+
+    }
+
+    // Leaves a multicast group
+    @ReactMethod public void udpLeave(final int id,
+                                      final String address,
+                                      final Promise promise) {
+
+        // Get socket info
+        final SocketInfo si = socketInfo.get(id);
+        if (si == null) {
+            promise.reject("socket-closed", "This socket has been closed.");
+            return;
+        }
+
+        // Start a background operation
+        si.writeThread.execute(new Runnable() {
+            @Override
+            public void run() {
+
+                // Catch errors
+                try {
+
+                    // Join the group
+                    si.udpSocket.leaveGroup(InetAddress.getByName(address));
+                    promise.resolve(null);
 
                 } catch (Exception e) {
 

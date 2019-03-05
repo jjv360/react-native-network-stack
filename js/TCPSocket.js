@@ -1,35 +1,9 @@
 
 import { NativeModules, DeviceEventEmitter } from 'react-native'
-
-// Cheap attempt to prevent users using private functions
-const PRIVATE = Math.random()
+import Socket from './Socket'
 
 /** Handles connection to a remote TCP socket and sending/receiving data. */
-export default class TCPSocket {
-
-    /** @private Constructor */
-    constructor(p) {
-
-        // Check if private
-        if (p != PRIVATE)
-            throw new Error('TCPSocket constructor is private, you must not call it.')
-
-        /** @private The native socket ID */
-        this.id = -1
-
-        /** The locally bound port */
-        this.localPort = -1
-
-        /** The remote port, if not a server socket */
-        this.remotePort = -1
-
-        /** The locally bound address */
-        this.localAddress = ""
-
-        /** The remote address, if not a server socket */
-        this.remoteAddress = ""
-
-    }
+export default class TCPSocket extends Socket {
 
     /** 
      * Connect to a remote socket.
@@ -44,15 +18,7 @@ export default class TCPSocket {
         let info = await NativeModules.RNNetworkStack.tcpConnect(host, port)
 
         // Create new instance
-        let socket = new TCPSocket(PRIVATE)
-        socket.id = info.id
-        socket.localPort = info.localPort
-        socket.remotePort = info.remotePort
-        socket.localAddress = info.localAddress
-        socket.remoteAddress = info.remoteAddress
-
-        // Done
-        return socket
+        return new TCPSocket(info)
 
     }
 
@@ -68,22 +34,12 @@ export default class TCPSocket {
         let info = await NativeModules.RNNetworkStack.tcpListen(host, port)
 
         // Create new instance
-        let socket = new TCPSocket(PRIVATE)
-        socket.id = info.id
-        socket.localPort = info.localPort
-        socket.remotePort = info.remotePort
-        socket.localAddress = info.localAddress
-        socket.remoteAddress = info.remoteAddress
+        let socket = new TCPSocket(info)
         socket.isServer = true
 
         // Done
         return socket
 
-    }
-
-    /** Close the socket */
-    close() {
-        return NativeModules.RNNetworkStack.tcpClose(this.id)
     }
 
     /**
@@ -158,7 +114,7 @@ export default class TCPSocket {
      * 
      * @param {string|int} data Data to send.
      * @param {Object} opts Options object.
-     * @returns {Promise<string>} The read data 
+     * @returns {Promise}
      */
     async write(data, opts = {}) {
 
@@ -224,12 +180,7 @@ export default class TCPSocket {
         let info = await NativeModules.RNNetworkStack.tcpAccept(this.id)
 
         // Create new instance
-        let socket = new TCPSocket(PRIVATE)
-        socket.id = info.id
-        socket.localPort = info.localPort
-        socket.remotePort = info.remotePort
-        socket.localAddress = info.localAddress
-        socket.remoteAddress = info.remoteAddress
+        let socket = new TCPSocket(info)
         socket.serverSocket = this
 
         // Done

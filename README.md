@@ -61,4 +61,9 @@ Send data from file             | ✓        |     |
 Receive strings                 | ✓        |     |   
 Receive binary data             |         |     |   
 Save to file                    | ✓        |     |
-View local and remote address	  | ✓       |     |
+**UDPSocket class**             | ✓       |     |   
+Send strings                    | ✓       |     |   
+Send binary data                |         |     |   
+Receive strings                 | ✓       |     |   
+Receive binary data             |         |     |   
+Bind to multicast address       | ✓       |     |   
