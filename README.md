@@ -1,3 +1,6 @@
+![](https://img.shields.io/badge/status-alpha-red.svg)
+![](https://img.shields.io/badge/platforms-android-red.svg)
+![](https://img.shields.io/github/package-json/v/jjv360/react-native-network-stack.svg)
 
 # react-native-network-stack
 
