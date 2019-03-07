@@ -55,18 +55,14 @@ while (true) {
 Feature                         | Android | iOS | Windows
 --------------------------------|---------|-----|----------
 **Documentation**               |         |     |   
-**TCPSocket class**             | ✓       |     |   
-Connect to remote socket        | ✓        |     | 
-Accept incoming connections     | ✓       |     |   
-Send strings                    | ✓        |     |  
-Send binary data                |         |     |   
-Send data from file             | ✓        |     |   
-Receive strings                 | ✓        |     |   
-Receive binary data             |         |     |   
-Save to file                    | ✓        |     |
+**TCPSocket class**             | ✓       | ✓   |   
+Connect to remote socket        | ✓       | ✓   | 
+Accept incoming connections     | ✓       | ✓   |   
+Send and receive data           | ✓       | ✓   |   
+Read and write to file          | ✓       | ✓   |
 **UDPSocket class**             | ✓       |     |   
-Send strings                    | ✓       |     |   
-Send binary data                |         |     |   
-Receive strings                 | ✓       |     |   
-Receive binary data             |         |     |   
+Send and receive data           |         |     |   
 Bind to multicast address       | ✓       |     |   
+**Data formats**                | ✓       |     |   
+UTF8 String                     | ✓       | ✓   |   
+Base64 String                   |         |     |   

@@ -5,7 +5,9 @@
 #import <React/RCTBridgeModule.h>
 #endif
 
-@interface RNNetworkStack : NSObject <RCTBridgeModule>
+#import "RNSocket.h"
 
+@interface RNNetworkStack : NSObject <RCTBridgeModule>
+    @property NSMutableDictionary* activeSockets;
 @end
   

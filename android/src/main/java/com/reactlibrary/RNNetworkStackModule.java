@@ -130,7 +130,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
         // Get socket info
         final SocketInfo si = socketInfo.get(id);
         if (si == null) {
-            promise.reject("socket-not-found", "This socket is closed.");
+            promise.reject("socket-closed", "This socket is closed.");
             return;
         }
 
@@ -327,7 +327,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
         // Get socket info
         final SocketInfo si = socketInfo.get(id);
         if (si == null) {
-            promise.reject("socket-not-found", "This socket is closed.");
+            promise.reject("socket-closed", "This socket is closed.");
             return;
         }
 
