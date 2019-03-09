@@ -10,7 +10,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface RNSocket : NSObject <GCDAsyncSocketDelegate>
+@interface RNSocket : NSObject
     
     // Local identifier used by Javascript
     @property int identifier;

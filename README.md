@@ -1,5 +1,5 @@
 ![](https://img.shields.io/badge/status-alpha-red.svg)
-![](https://img.shields.io/badge/platforms-android-red.svg)
+![](https://img.shields.io/badge/platforms-android%20|%20ios-green.svg)
 ![](https://img.shields.io/github/package-json/v/jjv360/react-native-network-stack.svg)
 
 # react-native-network-stack
@@ -60,9 +60,9 @@ Connect to remote socket        | ✓       | ✓   |
 Accept incoming connections     | ✓       | ✓   |   
 Send and receive data           | ✓       | ✓   |   
 Read and write to file          | ✓       | ✓   |
-**UDPSocket class**             | ✓       |     |   
-Send and receive data           |         |     |   
-Bind to multicast address       | ✓       |     |   
-**Data formats**                | ✓       |     |   
+**UDPSocket class**             | ✓       | ✓   |   
+Send and receive data           | ✓       | ✓   |   
+Bind to multicast address       | ✓       | ✓   |   
+**Data formats**                | ✓       | ✓   |   
 UTF8 String                     | ✓       | ✓   |   
 Base64 String                   |         |     |   
