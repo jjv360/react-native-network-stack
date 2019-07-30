@@ -61,6 +61,10 @@ RCT_EXPORT_METHOD(tcpConnect:(NSString*)host port:(int)port resolve:(RCTPromiseR
                 
             }
             
+            // Disable SIGPIPE
+            int value = 1;
+            setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &value, sizeof(value));
+            
             // Socket created. Try to connect to remote device.
             result = connect(fd, nextConnection->ai_addr, nextConnection->ai_addrlen);
             if (fd == -1) {
@@ -459,6 +463,10 @@ RCT_EXPORT_METHOD(tcpListen:(NSString*)host port:(int)port resolve:(RCTPromiseRe
             
         }
         
+        // Disable SIGPIPE
+        int value = 1;
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &value, sizeof(value));
+        
         // Bind it
         result = bind(fd, connectionInfo->ai_addr, connectionInfo->ai_addrlen);
         if (result == -1) {
@@ -587,6 +595,10 @@ RCT_EXPORT_METHOD(tcpAccept:(int)identifier p4:(RCTPromiseResolveBlock)resolve p
         if (fd == -1)
             return reject(@"socket-error", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
         
+        // Disable SIGPIPE
+        int value = 1;
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &value, sizeof(value));
+        
         // Got a new socket, create it
         RNSocket* sock2 = [[RNSocket alloc] init];
         sock2.fd = fd;
@@ -643,6 +655,10 @@ RCT_EXPORT_METHOD(udpBind:(int)port p:(BOOL)broadcast p:(BOOL)reuse resolve:(RCT
             return reject(@"socket-error", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
             
         }
+        
+        // Disable SIGPIPE
+        int value = 1;
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &value, sizeof(value));
         
         // Set broadcast flag if needed
         if (broadcast) {
