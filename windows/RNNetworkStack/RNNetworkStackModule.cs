@@ -29,5 +29,10 @@ namespace Network.Stack.RNNetworkStack
                 return "RNNetworkStack";
             }
         }
+
+        [ReactMethod] public void tcpListen() {
+            
+        }
+
     }
 }

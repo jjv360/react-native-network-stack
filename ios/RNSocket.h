@@ -20,18 +20,18 @@ NS_ASSUME_NONNULL_BEGIN
     @property int fd6;
     
     // Connection info
-    @property NSString* localAddress;
-    @property NSString* remoteAddress;
+    @property (retain) NSString* localAddress;
+    @property (retain) NSString* remoteAddress;
     @property int localPort;
     @property int remotePort;
     
     // Queues for reading and writing
-    @property dispatch_queue_t readQueue;
-    @property dispatch_queue_t writeQueue;
+    @property (retain) dispatch_queue_t readQueue;
+    @property (retain) dispatch_queue_t writeQueue;
     
     // Streams
-    @property NSInputStream* inputStream;
-    @property NSOutputStream* outputStream;
+    @property (retain) NSInputStream* inputStream;
+    @property (retain) NSOutputStream* outputStream;
     
     -(NSDictionary*) json;
     

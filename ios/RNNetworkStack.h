@@ -8,6 +8,6 @@
 #import "RNSocket.h"
 
 @interface RNNetworkStack : NSObject <RCTBridgeModule>
-    @property NSMutableDictionary* activeSockets;
+    @property (retain) NSMutableDictionary* activeSockets;
 @end
   
