@@ -216,12 +216,11 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
 -(NSString*) readSocket:(RNSocket*)sock untilLength:(int)maxLength toStream:(NSOutputStream*)stream {
     
     // Read until all data has been read
-    uint8_t tempBuffer[1024*512];
     int amountRead = 0;
     while (amountRead < maxLength) {
         
         // Read some data from the socket
-        ssize_t amt = read(sock.fd, tempBuffer, MIN(sizeof(tempBuffer), maxLength - amountRead));
+        ssize_t amt = read(sock.fd, sock.readBuffer, MIN(sock.readBufferLength, maxLength - amountRead));
         if (amt == -1) {
             
             // Socket closed while we were reading from it!
@@ -231,7 +230,7 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
         }
         
         // Write to stream
-        [stream write:tempBuffer maxLength:amt];
+        [stream write:sock.readBuffer maxLength:amt];
         amountRead += amt;
         
     }
@@ -301,11 +300,8 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
 // @private Read the socket until any amount of data has been read
 -(NSString*) readAnyDataFromSocket:(RNSocket*)sock toStream:(NSOutputStream*)stream {
     
-    // Read until all data has been read
-    uint8_t tempBuffer[1024*512];
-    
     // Read some data from the socket
-    ssize_t amt = read(sock.fd, tempBuffer, sizeof(tempBuffer));
+    ssize_t amt = read(sock.fd, sock.readBuffer, sock.readBufferLength);
     if (amt == -1) {
         
         // Socket closed while we were reading from it!
@@ -315,7 +311,7 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
     }
     
     // Write to stream
-    [stream write:tempBuffer maxLength:amt];
+    [stream write:sock.readBuffer maxLength:amt];
     
     // Done
     return NULL;
@@ -383,18 +379,17 @@ RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(BOOL)isFile p3:(NSStr
         
         // Start streaming the data
         long long amountRead = 0;
-        uint8_t buffer[1024*512];
         while (amountRead < totalSize) {
             
             // Read data
-            NSInteger amt = [inputStream read:buffer maxLength:MIN(sizeof(buffer), totalSize - amountRead)];
+            NSInteger amt = [inputStream read:sock.writeBuffer maxLength:MIN(sock.writeBufferLength, totalSize - amountRead)];
             if (amt <= 0 && inputStream.streamError)
                 return reject(@"input-error", inputStream.streamError.localizedDescription , inputStream.streamError);
             else if (amt <= 0)
                 return reject(@"input-error", @"Input stream ended prematurely." , NULL);
             
             // Write to socket
-            ssize_t result = write(sock.fd, buffer, amt);
+            ssize_t result = write(sock.fd, sock.writeBuffer, amt);
             if (result == -1) {
                 
                 // Socket error!
@@ -741,30 +736,27 @@ RCT_EXPORT_METHOD(udpRead:(int)identifier resolve:(RCTPromiseResolveBlock)resolv
     // Do on background thread
     dispatch_async(sock.readQueue, ^{
         
-        // Read until all data has been read
-        uint8_t tempBuffer[1024*512];
-        
         // Read some data from the socket
         struct sockaddr_storage source = {0};
         socklen_t size = sizeof(source);
-        ssize_t amt = recvfrom(sock.fd, tempBuffer, sizeof(tempBuffer), 0, (struct sockaddr*) &source, &size);
+        ssize_t amt = recvfrom(sock.fd, sock.readBuffer, sock.readBufferLength, 0, (struct sockaddr*) &source, &size);
         if (amt == -1) {
-            
+
             // Socket closed while we were reading from it!
             [self.activeSockets removeObjectForKey:[NSNumber numberWithInt:sock.identifier]];
             return reject(@"socket-closed", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
-            
+
         }
-        
+
         // Construct response
         NSMutableDictionary* dict = [NSMutableDictionary dictionary];
         [dict setObject:[self ipFromAddr:(struct sockaddr*) &source] forKey:@"senderAddress"];
         [dict setObject:[NSNumber numberWithInt:[self portFromAddr:(struct sockaddr*) &source]] forKey:@"senderPort"];
-        
+
         // Convert data to requested type (only UTF8 supported for now)
-        NSData* data = [NSData dataWithBytes:tempBuffer length:amt];
+        NSData* data = [NSData dataWithBytes:sock.readBuffer length:amt];
         [dict setObject:[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] forKey:@"data"];
-        
+
         // Done
         return resolve(dict);
         

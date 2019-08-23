@@ -32,7 +32,7 @@ static int nextSocketID = 0;
     
 }
 
--(void)dealloc {
+-(void) dealloc {
     
     // If we still have an active socket, close it
     if (self.fd != -1)
@@ -55,6 +55,24 @@ static int nextSocketID = 0;
     [dict setObject:[NSNumber numberWithInt:self.remotePort] forKey:@"remotePort"];
     return dict;
     
+}
+    
+// Get read buffer
+-(uint8_t*) readBuffer {
+    return readBuffer;
+}
+    
+-(int) readBufferLength {
+    return SOCK_BUFFER_SIZE;
+}
+    
+// Get write buffer
+-(uint8_t*) writeBuffer {
+    return writeBuffer;
+}
+    
+-(int) writeBufferLength {
+    return SOCK_BUFFER_SIZE;
 }
 
 @end
