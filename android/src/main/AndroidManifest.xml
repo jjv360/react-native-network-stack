@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.reactlibrary">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.networkstack">
 
     <!-- The permissions we require -->
     <uses-permission android:name="android.permission.INTERNET"/>

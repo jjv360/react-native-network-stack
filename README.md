@@ -60,7 +60,7 @@ Connect to remote socket        | ✓       | ✓   |
 Accept incoming connections     | ✓       | ✓   |   
 Send and receive data           | ✓       | ✓   |   
 Read and write to file          | ✓       | ✓   |
-File read/write progress        | ✓       |     |
+File read/write progress        | ✓       | ✓   |
 **UDPSocket class**             | ✓       | ✓   |   
 Send and receive data           | ✓       | ✓   |   
 Bind to multicast address       | ✓       | ✓   |   

@@ -1,5 +1,5 @@
 
-import { NativeModules, DeviceEventEmitter } from 'react-native'
+import { NativeModules, NativeEventEmitter } from 'react-native'
 import Socket from './Socket'
 
 /** Handles connection to a remote TCP socket and sending/receiving data. */
@@ -62,14 +62,25 @@ export default class TCPSocket extends Socket {
         // Check if user wants progress events. NOTE: This weirdness is due to React Native's inability to have 
         // multiple callbacks in a native API call.
         let eventID = null
+        let eventSubscription = null
         if (opts.onProgress) {
 
             // Get event ID
             if (!TCPSocket.nextEventID) TCPSocket.nextEventID = 1
-            eventID = "net.read:" + (TCPSocket.nextEventID++)
+            eventID = "" + (TCPSocket.nextEventID++)
 
             // Add listener
-            DeviceEventEmitter.addListener(eventID, opts.onProgress)
+            eventSubscription = Socket.emitter.addListener('net.read', str => {
+
+                // Check if ours
+                let args = str.split('|')
+                if (args[0] != eventID)
+                    return
+
+                // Convert to progress and send it
+                opts.onProgress(parseInt(args[1]))
+
+            })
 
         }
 
@@ -80,12 +91,12 @@ export default class TCPSocket extends Socket {
             typeof opts.length == 'number' ? opts.length : -1,
             opts.saveTo,
             !!opts.skip,
-            eventID
+            eventID || ""
         ).then(val => {
 
             // Remove listener if needed
-            if (eventID)
-                DeviceEventEmitter.removeListener(eventID, opts.onProgress)
+            if (eventSubscription)
+                eventSubscription.remove()
 
             // Pass on data
             return val
@@ -93,8 +104,8 @@ export default class TCPSocket extends Socket {
         }).catch(err => {
 
             // Remove listener if needed
-            if (eventID)
-                DeviceEventEmitter.removeListener(eventID, opts.onProgress)
+            if (eventSubscription)
+                eventSubscription.remove()
 
             // Pass on error
             throw err
@@ -125,14 +136,25 @@ export default class TCPSocket extends Socket {
         // Check if user wants progress events. NOTE: This weirdness is due to React Native's inability to have 
         // multiple callbacks in a native API call.
         let eventID = null
+        let eventSubscription = null
         if (opts.onProgress) {
 
             // Get event ID
             if (!TCPSocket.nextEventID) TCPSocket.nextEventID = 1
-            eventID = "net.write:" + (TCPSocket.nextEventID++)
+            eventID = "" + (TCPSocket.nextEventID++)
 
             // Add listener
-            DeviceEventEmitter.addListener(eventID, opts.onProgress)
+            eventSubscription = Socket.emitter.addListener('net.write', str => {
+
+                // Check if ours
+                let args = str.split('|')
+                if (args[0] != eventID)
+                    return
+
+                // Convert to progress and send it
+                opts.onProgress(parseInt(args[1]))
+
+            })
 
         }
 
@@ -145,8 +167,8 @@ export default class TCPSocket extends Socket {
         ).then(val => {
 
             // Remove listener if needed
-            if (eventID)
-                DeviceEventEmitter.removeListener(eventID, opts.onProgress)
+            if (eventSubscription)
+                eventSubscription.remove()
 
             // Pass on data
             return val
@@ -154,8 +176,8 @@ export default class TCPSocket extends Socket {
         }).catch(err => {
 
             // Remove listener if needed
-            if (eventID)
-                DeviceEventEmitter.removeListener(eventID, opts.onProgress)
+            if (eventSubscription)
+                eventSubscription.remove()
 
             // Pass on error
             throw err

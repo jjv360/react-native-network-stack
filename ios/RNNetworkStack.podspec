@@ -1,12 +1,13 @@
 
 Pod::Spec.new do |s|
+  s.homepage = "https://facebook.github.io/react-native/"
   s.name         = "RNNetworkStack"
   s.version      = "1.0.0"
   s.summary      = "RNNetworkStack"
   s.description  = <<-DESC
                   RNNetworkStack
                    DESC
-  s.homepage     = ""
+  #s.homepage     = ""
   s.license      = "MIT"
   # s.license      = { :type => "MIT", :file => "FILE_LICENSE" }
   s.author             = { "author" => "author@domain.cn" }

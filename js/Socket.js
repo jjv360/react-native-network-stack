@@ -1,5 +1,7 @@
 
-import { NativeModules } from 'react-native'
+import { NativeModules, NativeEventEmitter } from 'react-native'
+
+let eventEmitter = null
 
 /** Base class for socket types */
 export default class Socket {
@@ -34,6 +36,18 @@ export default class Socket {
     /** Close the socket */
     close() {
         return NativeModules.RNNetworkStack.socketClose(this.id)
+    }
+
+    /** Get the native event emitter */
+    static get emitter() {
+
+        // Create if necessary
+        if (!eventEmitter)
+            eventEmitter = new NativeEventEmitter(NativeModules.RNNetworkStack)
+
+        // Return it
+        return eventEmitter
+
     }
 
 }

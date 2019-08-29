@@ -4,7 +4,7 @@
 #import <arpa/inet.h>
 
 @implementation RNNetworkStack
-    
+
 -(id) init {
     self = [super init];
     
@@ -16,6 +16,10 @@
 
 +(BOOL) requiresMainQueueSetup {
     return NO;
+}
+
+-(NSArray<NSString*>*)supportedEvents {
+    return @[@"net.read", @"net.write"];
 }
 
 RCT_EXPORT_MODULE();
@@ -34,8 +38,8 @@ RCT_EXPORT_METHOD(tcpConnect:(NSString*)host port:(int)port resolve:(RCTPromiseR
         searchInfo.ai_family = AF_UNSPEC;           // IPv4 or IPv6, we don't care
         searchInfo.ai_socktype = SOCK_STREAM;       // TCP connection please
         searchInfo.ai_flags = AI_V4MAPPED           // If only IPv6 is on this device and target is IPv4, give us a IPv6-to-IPv4 mapped address
-            | AI_ADDRCONFIG                         // Only give us addresses that we have the hardware to connect to
-            | AI_NUMERICSERV;                       // Our service is a numeric port number, not a "named" service
+        | AI_ADDRCONFIG                         // Only give us addresses that we have the hardware to connect to
+        | AI_NUMERICSERV;                       // Our service is a numeric port number, not a "named" service
         
         // Fetch info describing how we should connect to this remote host
         const char* cHost = [host cStringUsingEncoding:NSUTF8StringEncoding];
@@ -43,7 +47,7 @@ RCT_EXPORT_METHOD(tcpConnect:(NSString*)host port:(int)port resolve:(RCTPromiseR
         struct addrinfo* connectionInfo;
         int result = getaddrinfo(cHost, cPort, &searchInfo, &connectionInfo);
         if (result != 0)
-            return reject(@"invalid_host", [NSString stringWithCString:gai_strerror(result) encoding:NSUTF8StringEncoding], NULL);
+        return reject(@"invalid_host", [NSString stringWithCString:gai_strerror(result) encoding:NSUTF8StringEncoding], NULL);
         
         // Attempt to connect to each connection method in the list
         struct addrinfo* nextConnection = connectionInfo;
@@ -116,7 +120,7 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
     // Find socket
     RNSocket* sock = [self.activeSockets objectForKey:[NSNumber numberWithInt:identifier]];
     if (!sock)
-        return reject(@"socket-closed", @"This socket has been closed.", NULL);
+    return reject(@"socket-closed", @"This socket has been closed.", NULL);
     
     // Do on background thread
     dispatch_async(sock.readQueue, ^{
@@ -129,7 +133,7 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
             NSError* err = NULL;
             [[NSFileManager defaultManager] createDirectoryAtPath:saveTo.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:&err];
             if (err)
-                return reject(@"file-error", err.localizedDescription, err);
+            return reject(@"file-error", err.localizedDescription, err);
             
             // Create file output stream
             outStream = [NSOutputStream outputStreamToFileAtPath:saveTo append:NO];
@@ -148,9 +152,11 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
         if (maxLength > -1) {
             
             // Read all data until the specified amount of bytes have been read
-            NSString* err = [self readSocket:sock untilLength:maxLength toStream:outStream];
+            NSString* err = [self readSocket:sock untilLength:maxLength toStream:outStream withProgress:^(long amount) {
+                if (progressID.length > 0) [self sendEventWithName:@"net.read" body:[NSString stringWithFormat:@"%@|%li", progressID, amount]];
+            }];
             if (err)
-                return reject(@"read-error", err, NULL);
+            return reject(@"read-error", err, NULL);
             
         } else if ([terminator isKindOfClass:[NSString class]]) {
             
@@ -159,9 +165,11 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
             NSData* terminatorData = [terminatorStr dataUsingEncoding:NSUTF8StringEncoding];
             
             // Read all data until the specified terminator has been read
-            NSString* err = [self readSocket:sock untilTerminator:terminatorData toStream:outStream];
+            NSString* err = [self readSocket:sock untilTerminator:terminatorData toStream:outStream withProgress:^(long amount) {
+                if (progressID.length > 0) [self sendEventWithName:@"net.read" body:[NSString stringWithFormat:@"%@|%li", progressID, amount]];
+            }];
             if (err)
-                return reject(@"read-error", err, NULL);
+            return reject(@"read-error", err, NULL);
             
         } else if ([terminator isKindOfClass:[NSNumber class]]) {
             
@@ -173,9 +181,11 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
             NSData* terminatorData = [NSData dataWithBytes:&byte length:1];
             
             // Read all data until the specified terminator has been read
-            NSString* err = [self readSocket:sock untilTerminator:terminatorData toStream:outStream];
+            NSString* err = [self readSocket:sock untilTerminator:terminatorData toStream:outStream withProgress:^(long amount) {
+                if (progressID.length > 0) [self sendEventWithName:@"net.send" body:[NSString stringWithFormat:@"%@|%li", progressID, amount]];
+            }];
             if (err)
-                return reject(@"read-error", err, NULL);
+            return reject(@"read-error", err, NULL);
             
         } else if (terminator) {
             
@@ -187,7 +197,7 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
             // The user just wants a packet of data, they don't care how much they get
             NSString* err = [self readAnyDataFromSocket:sock toStream:outStream];
             if (err)
-                return reject(@"read-error", err, NULL);
+            return reject(@"read-error", err, NULL);
             
         }
         
@@ -213,10 +223,11 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
 }
 
 // @private Read the socket until the specified amount of data has been read
--(NSString*) readSocket:(RNSocket*)sock untilLength:(int)maxLength toStream:(NSOutputStream*)stream {
+-(NSString*) readSocket:(RNSocket*)sock untilLength:(long)maxLength toStream:(NSOutputStream*)stream withProgress:(void(^)(long amount))progress {
     
     // Read until all data has been read
-    int amountRead = 0;
+    long amountRead = 0;
+    NSTimeInterval lastNotify = 0;
     while (amountRead < maxLength) {
         
         // Read some data from the socket
@@ -233,6 +244,12 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
         [stream write:sock.readBuffer maxLength:amt];
         amountRead += amt;
         
+        // Notify
+        if (NSDate.timeIntervalSinceReferenceDate - lastNotify > 0.5) {
+            progress(amountRead);
+            lastNotify = NSDate.timeIntervalSinceReferenceDate;
+        }
+        
     }
     
     // Done
@@ -241,20 +258,23 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
 }
 
 // @private Read the socket until the specified terminator has been read
--(NSString*) readSocket:(RNSocket*)sock untilTerminator:(NSData*)terminator toStream:(NSOutputStream*)stream {
+-(NSString*) readSocket:(RNSocket*)sock untilTerminator:(NSData*)terminator toStream:(NSOutputStream*)stream withProgress:(void(^)(long amount))progress {
     
     // Throw an error if terminator data is empty
     if (terminator.length == 0)
-        return @"Terminator cannot be empty.";
+    return @"Terminator cannot be empty.";
     
     // Read until all data has been read
     int lastTerminatorMatch = 0;
     int amountRead = 0;
+    NSTimeInterval lastNotify = 0;
     while (true) {
         
         // Read a single byte
         uint8_t b = 0;
+        NSLog(@"SOCK: Start read until terminator");
         ssize_t amt = read(sock.fd, &b, 1);
+        NSLog(@"SOCK: End read until terminator, %i", amt);
         if (amt == -1) {
             
             // Socket closed while we were reading from it!
@@ -272,7 +292,7 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
             
             // If all terminator bytes have been matched, stop
             if (lastTerminatorMatch >= terminator.length)
-                break;
+            break;
             
         } else {
             
@@ -282,12 +302,18 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
             
             // Put any items we thought were part of the terminator, into the main buffer
             for (int i = 0 ; i < lastTerminatorMatch ; i++)
-                [stream write:&((uint8_t*) terminator.bytes)[i] maxLength:1];
+            [stream write:&((uint8_t*) terminator.bytes)[i] maxLength:1];
             
             // Reset count
             amountRead += lastTerminatorMatch;
             lastTerminatorMatch = 0;
             
+        }
+        
+        // Notify
+        if (NSDate.timeIntervalSinceReferenceDate - lastNotify > 0.5) {
+            progress(amountRead);
+            lastNotify = NSDate.timeIntervalSinceReferenceDate;
         }
         
     }
@@ -324,7 +350,7 @@ RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(BOOL)isFile p3:(NSStr
     // Find socket
     RNSocket* sock = [self.activeSockets objectForKey:[NSNumber numberWithInt:identifier]];
     if (!sock)
-        return reject(@"socket-closed", @"This socket has been closed.", NULL);
+    return reject(@"socket-closed", @"This socket has been closed.", NULL);
     
     // Do on background thread
     dispatch_async(sock.writeQueue, ^{
@@ -341,7 +367,7 @@ RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(BOOL)isFile p3:(NSStr
             NSError* err = NULL;
             NSDictionary* fileInfo = [[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:&err];
             if (err)
-                return reject(@"file-error", err.localizedDescription, err);
+            return reject(@"file-error", err.localizedDescription, err);
             
             // Read file size
             NSNumber* fileSizeNumber = [fileInfo objectForKey:NSFileSize];
@@ -379,6 +405,7 @@ RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(BOOL)isFile p3:(NSStr
         
         // Start streaming the data
         long long amountRead = 0;
+        NSTimeInterval lastNotify = 0;
         while (amountRead < totalSize) {
             
             // Read data
@@ -390,7 +417,13 @@ RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(BOOL)isFile p3:(NSStr
             
             // Write to socket
             ssize_t result = write(sock.fd, sock.writeBuffer, amt);
-            if (result == -1) {
+            if (result >= 0 && result != amt) {
+                
+                // Buffer error!
+                [self.activeSockets removeObjectForKey:[NSNumber numberWithInt:sock.identifier]];
+                return reject(@"socket-error", @"Unable to send entire buffer to the remote device.", NULL);
+                
+            } else if (result < 0) {
                 
                 // Socket error!
                 [self.activeSockets removeObjectForKey:[NSNumber numberWithInt:sock.identifier]];
@@ -400,6 +433,12 @@ RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(BOOL)isFile p3:(NSStr
             
             // Increase counter
             amountRead += amt;
+            
+            // Notify
+            if (progressID.length > 0 && NSDate.timeIntervalSinceReferenceDate - lastNotify > 0.5) {
+                [self sendEventWithName:@"net.write" body:[NSString stringWithFormat:@"%@|%lli", progressID, amountRead]];
+                lastNotify = NSDate.timeIntervalSinceReferenceDate;
+            }
             
         }
         
@@ -436,9 +475,9 @@ RCT_EXPORT_METHOD(tcpListen:(NSString*)host port:(int)port resolve:(RCTPromiseRe
         searchInfo.ai_family = AF_INET;         // IPv4 only for now, support IPv6?
         searchInfo.ai_socktype = SOCK_STREAM;   // TCP connection please
         searchInfo.ai_flags = AI_V4MAPPED       // If only IPv6 is on this device and target is IPv4, give us a IPv6-to-IPv4 mapped address
-            | AI_ADDRCONFIG                     // Only give us addresses that we have the hardware to connect to
-            | AI_NUMERICSERV                    // Our service is a numeric port number, not a "named" service
-            | AI_PASSIVE;                       // We want to bind to this socket
+        | AI_ADDRCONFIG                     // Only give us addresses that we have the hardware to connect to
+        | AI_NUMERICSERV                    // Our service is a numeric port number, not a "named" service
+        | AI_PASSIVE;                       // We want to bind to this socket
         
         // Fetch info describing how we should connect to this remote host
         const char* cHost = [host isEqualToString:@"0.0.0.0"] ? NULL : [host cStringUsingEncoding:NSUTF8StringEncoding];
@@ -446,7 +485,7 @@ RCT_EXPORT_METHOD(tcpListen:(NSString*)host port:(int)port resolve:(RCTPromiseRe
         struct addrinfo* connectionInfo;
         int result = getaddrinfo(cHost, cPort, &searchInfo, &connectionInfo);
         if (result != 0)
-            return reject(@"invalid_host", [NSString stringWithCString:gai_strerror(result) encoding:NSUTF8StringEncoding], NULL);
+        return reject(@"invalid_host", [NSString stringWithCString:gai_strerror(result) encoding:NSUTF8StringEncoding], NULL);
         
         // Create IPv4 socket
         int fd = socket(connectionInfo->ai_family, connectionInfo->ai_socktype, connectionInfo->ai_protocol);
@@ -508,9 +547,9 @@ RCT_EXPORT_METHOD(tcpListen:(NSString*)host port:(int)port resolve:(RCTPromiseRe
     struct sockaddr_storage localInfo = {0};
     socklen_t len = sizeof(localInfo);
     if (getsockname(fd, (struct sockaddr*) &localInfo, &len) != 0)
-        return @"";
+    return @"";
     else
-        return [self ipFromAddr:(struct sockaddr*) &localInfo];
+    return [self ipFromAddr:(struct sockaddr*) &localInfo];
     
 }
 
@@ -541,7 +580,7 @@ RCT_EXPORT_METHOD(tcpListen:(NSString*)host port:(int)port resolve:(RCTPromiseRe
     struct sockaddr_storage localInfo = {0};
     socklen_t len = sizeof(localInfo);
     if (getsockname(fd, (struct sockaddr*) &localInfo, &len) != 0)
-        return 0;
+    return 0;
     
     // Get port
     if (localInfo.ss_family == AF_INET6) {
@@ -578,7 +617,7 @@ RCT_EXPORT_METHOD(tcpAccept:(int)identifier p4:(RCTPromiseResolveBlock)resolve p
     // Find socket
     RNSocket* sock = [self.activeSockets objectForKey:[NSNumber numberWithInt:identifier]];
     if (!sock)
-        return reject(@"socket-closed", @"This socket has been closed.", NULL);
+    return reject(@"socket-closed", @"This socket has been closed.", NULL);
     
     // Do on background thread
     dispatch_async(sock.readQueue, ^{
@@ -588,7 +627,7 @@ RCT_EXPORT_METHOD(tcpAccept:(int)identifier p4:(RCTPromiseResolveBlock)resolve p
         socklen_t size = sizeof(addr);
         int fd = accept(sock.fd, (struct sockaddr*) &addr, &size);
         if (fd == -1)
-            return reject(@"socket-error", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
+        return reject(@"socket-error", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
         
         // Disable SIGPIPE
         int value = 1;
@@ -639,7 +678,7 @@ RCT_EXPORT_METHOD(udpBind:(int)port p:(BOOL)broadcast p:(BOOL)reuse resolve:(RCT
         struct addrinfo* connectionInfo;
         int result = getaddrinfo(cHost, cPort, &searchInfo, &connectionInfo);
         if (result != 0)
-            return reject(@"invalid_host", [NSString stringWithCString:gai_strerror(result) encoding:NSUTF8StringEncoding], NULL);
+        return reject(@"invalid_host", [NSString stringWithCString:gai_strerror(result) encoding:NSUTF8StringEncoding], NULL);
         
         // Create socket
         int fd = socket(connectionInfo->ai_family, connectionInfo->ai_socktype, connectionInfo->ai_protocol);
@@ -697,7 +736,7 @@ RCT_EXPORT_METHOD(udpBind:(int)port p:(BOOL)broadcast p:(BOOL)reuse resolve:(RCT
             }
             
         }
-            
+        
         // Socket created. Try to connect to remote device.
         result = bind(fd, connectionInfo->ai_addr, connectionInfo->ai_addrlen);
         if (result == -1) {
@@ -731,7 +770,7 @@ RCT_EXPORT_METHOD(udpRead:(int)identifier resolve:(RCTPromiseResolveBlock)resolv
     // Find socket
     RNSocket* sock = [self.activeSockets objectForKey:[NSNumber numberWithInt:identifier]];
     if (!sock)
-        return reject(@"socket-closed", @"This socket has been closed.", NULL);
+    return reject(@"socket-closed", @"This socket has been closed.", NULL);
     
     // Do on background thread
     dispatch_async(sock.readQueue, ^{
@@ -741,22 +780,22 @@ RCT_EXPORT_METHOD(udpRead:(int)identifier resolve:(RCTPromiseResolveBlock)resolv
         socklen_t size = sizeof(source);
         ssize_t amt = recvfrom(sock.fd, sock.readBuffer, sock.readBufferLength, 0, (struct sockaddr*) &source, &size);
         if (amt == -1) {
-
+            
             // Socket closed while we were reading from it!
             [self.activeSockets removeObjectForKey:[NSNumber numberWithInt:sock.identifier]];
             return reject(@"socket-closed", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
-
+            
         }
-
+        
         // Construct response
         NSMutableDictionary* dict = [NSMutableDictionary dictionary];
         [dict setObject:[self ipFromAddr:(struct sockaddr*) &source] forKey:@"senderAddress"];
         [dict setObject:[NSNumber numberWithInt:[self portFromAddr:(struct sockaddr*) &source]] forKey:@"senderPort"];
-
+        
         // Convert data to requested type (only UTF8 supported for now)
         NSData* data = [NSData dataWithBytes:sock.readBuffer length:amt];
         [dict setObject:[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] forKey:@"data"];
-
+        
         // Done
         return resolve(dict);
         
@@ -770,11 +809,11 @@ RCT_EXPORT_METHOD(udpSend:(int)identifier p:(NSString*)address p:(int)port p:(NS
     // Find socket
     RNSocket* sock = [self.activeSockets objectForKey:[NSNumber numberWithInt:identifier]];
     if (!sock)
-        return reject(@"socket-closed", @"This socket has been closed.", NULL);
+    return reject(@"socket-closed", @"This socket has been closed.", NULL);
     
     // Do on background thread
     dispatch_async(sock.writeQueue, ^{
-    
+        
         // Create a struct describing the host/service we want to connect to
         struct addrinfo searchInfo = {0};
         searchInfo.ai_family = AF_UNSPEC;           // IPv4 or IPv6, we don't care
@@ -789,15 +828,15 @@ RCT_EXPORT_METHOD(udpSend:(int)identifier p:(NSString*)address p:(int)port p:(NS
         struct addrinfo* connectionInfo;
         int result = getaddrinfo(cHost, cPort, &searchInfo, &connectionInfo);
         if (result != 0)
-            return reject(@"invalid_host", [NSString stringWithCString:gai_strerror(result) encoding:NSUTF8StringEncoding], NULL);
+        return reject(@"invalid_host", [NSString stringWithCString:gai_strerror(result) encoding:NSUTF8StringEncoding], NULL);
         
         // Convert data to our required format (only UTF8 supported for now)
         NSData* dataBuffer = [data dataUsingEncoding:NSUTF8StringEncoding];
-    
+        
         // Send data
         ssize_t amt = sendto(sock.fd, dataBuffer.bytes, dataBuffer.length, 0, connectionInfo->ai_addr, connectionInfo->ai_addrlen);
         if (amt == -1)
-            return reject(@"socket-error", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
+        return reject(@"socket-error", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
         
         // Done
         return resolve([NSNumber numberWithLongLong:amt]);
@@ -812,7 +851,7 @@ RCT_EXPORT_METHOD(udpJoin:(int)identifier p:(NSString*)address p:(RCTPromiseReso
     // Find socket
     RNSocket* sock = [self.activeSockets objectForKey:[NSNumber numberWithInt:identifier]];
     if (!sock)
-        return reject(@"socket-closed", @"This socket has been closed.", NULL);
+    return reject(@"socket-closed", @"This socket has been closed.", NULL);
     
     // Do on background thread
     dispatch_async(sock.writeQueue, ^{
@@ -821,7 +860,7 @@ RCT_EXPORT_METHOD(udpJoin:(int)identifier p:(NSString*)address p:(RCTPromiseReso
         struct sockaddr_storage localInfo = {0};
         socklen_t len = sizeof(localInfo);
         if (getsockname(sock.fd, (struct sockaddr*) &localInfo, &len) != 0)
-            return reject(@"invalid-socket", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
+        return reject(@"invalid-socket", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
         
         // Create a struct describing the host info we want to join
         struct addrinfo searchInfo = {0};
@@ -835,7 +874,7 @@ RCT_EXPORT_METHOD(udpJoin:(int)identifier p:(NSString*)address p:(RCTPromiseReso
         struct addrinfo* connectionInfo;
         int result = getaddrinfo(cHost, NULL, &searchInfo, &connectionInfo);
         if (result != 0)
-            return reject(@"invalid_host", [NSString stringWithCString:gai_strerror(result) encoding:NSUTF8StringEncoding], NULL);
+        return reject(@"invalid_host", [NSString stringWithCString:gai_strerror(result) encoding:NSUTF8StringEncoding], NULL);
         
         // Check if IPv4 or IPv6
         if (connectionInfo->ai_family == AF_INET6) {
@@ -863,7 +902,7 @@ RCT_EXPORT_METHOD(udpJoin:(int)identifier p:(NSString*)address p:(RCTPromiseReso
         // Check response
         freeaddrinfo(connectionInfo);
         if (result == -1)
-            return reject(@"socket-error", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
+        return reject(@"socket-error", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
         
         // Done
         return resolve(NULL);
@@ -878,7 +917,7 @@ RCT_EXPORT_METHOD(udpLeave:(int)identifier p:(NSString*)address p:(RCTPromiseRes
     // Find socket
     RNSocket* sock = [self.activeSockets objectForKey:[NSNumber numberWithInt:identifier]];
     if (!sock)
-        return reject(@"socket-closed", @"This socket has been closed.", NULL);
+    return reject(@"socket-closed", @"This socket has been closed.", NULL);
     
     // Do on background thread
     dispatch_async(sock.writeQueue, ^{
@@ -887,7 +926,7 @@ RCT_EXPORT_METHOD(udpLeave:(int)identifier p:(NSString*)address p:(RCTPromiseRes
         struct sockaddr_storage localInfo = {0};
         socklen_t len = sizeof(localInfo);
         if (getsockname(sock.fd, (struct sockaddr*) &localInfo, &len) != 0)
-            return reject(@"invalid-socket", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
+        return reject(@"invalid-socket", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
         
         // Create a struct describing the host info we want to join
         struct addrinfo searchInfo = {0};
@@ -901,7 +940,7 @@ RCT_EXPORT_METHOD(udpLeave:(int)identifier p:(NSString*)address p:(RCTPromiseRes
         struct addrinfo* connectionInfo;
         int result = getaddrinfo(cHost, NULL, &searchInfo, &connectionInfo);
         if (result != 0)
-            return reject(@"invalid_host", [NSString stringWithCString:gai_strerror(result) encoding:NSUTF8StringEncoding], NULL);
+        return reject(@"invalid_host", [NSString stringWithCString:gai_strerror(result) encoding:NSUTF8StringEncoding], NULL);
         
         // Check if IPv4 or IPv6
         if (connectionInfo->ai_family == AF_INET6) {
@@ -929,7 +968,7 @@ RCT_EXPORT_METHOD(udpLeave:(int)identifier p:(NSString*)address p:(RCTPromiseRes
         // Check response
         freeaddrinfo(connectionInfo);
         if (result == -1)
-            return reject(@"socket-error", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
+        return reject(@"socket-error", [NSString stringWithCString:strerror(errno) encoding:NSUTF8StringEncoding], NULL);
         
         // Done
         return resolve(NULL);
@@ -939,4 +978,4 @@ RCT_EXPORT_METHOD(udpLeave:(int)identifier p:(NSString*)address p:(RCTPromiseRes
 }
 
 @end
-  
+

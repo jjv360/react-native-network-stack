@@ -1,5 +1,5 @@
 
-package com.reactlibrary;
+package com.networkstack;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Dynamic;
@@ -10,6 +10,7 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
+import com.facebook.react.modules.core.RCTNativeAppEventEmitter;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -17,12 +18,10 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketAddress;
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -187,7 +186,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
                             // Notify listener if needed
                             if (progressID != null && lastUpdateTime + 500 < System.currentTimeMillis()) {
                                 lastUpdateTime = System.currentTimeMillis();
-                                emitter.emit(progressID, amountRead);
+                                emitter.emit("net.read", progressID + "|" + amountRead);
                             }
 
                         }
@@ -263,7 +262,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
                             // Notify listener if needed
                             if (progressID != null && lastUpdateTime + 500 < System.currentTimeMillis()) {
                                 lastUpdateTime = System.currentTimeMillis();
-                                emitter.emit(progressID, amountRead);
+                                emitter.emit("net.read", progressID + "|" + amountRead);
                             }
 
                         }
@@ -367,7 +366,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
                             // Notify listener if needed
                             if (progressID != null && lastUpdateTime + 500 < System.currentTimeMillis()) {
                                 lastUpdateTime = System.currentTimeMillis();
-                                emitter.emit(progressID, amountRead);
+                                emitter.emit("net.write", progressID + "|" + amountRead);
                             }
 
                         }

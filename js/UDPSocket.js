@@ -1,5 +1,5 @@
 
-import { NativeModules, DeviceEventEmitter } from 'react-native'
+import { NativeModules } from 'react-native'
 import Socket from './Socket'
 
 /** Handles sending and receiving UDP datagrams. */

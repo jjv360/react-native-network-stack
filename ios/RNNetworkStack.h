@@ -5,9 +5,10 @@
 #import <React/RCTBridgeModule.h>
 #endif
 
+#import <React/RCTEventEmitter.h>
 #import "RNSocket.h"
 
-@interface RNNetworkStack : NSObject <RCTBridgeModule>
+@interface RNNetworkStack : RCTEventEmitter <RCTBridgeModule>
     @property (strong) NSMutableDictionary* activeSockets;
 @end
   
