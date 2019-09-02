@@ -272,9 +272,7 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
         
         // Read a single byte
         uint8_t b = 0;
-        NSLog(@"SOCK: Start read until terminator");
         ssize_t amt = read(sock.fd, &b, 1);
-        NSLog(@"SOCK: End read until terminator, %i", amt);
         if (amt == -1) {
             
             // Socket closed while we were reading from it!
@@ -455,7 +453,15 @@ RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(BOOL)isFile p3:(NSStr
 // Close the socket
 RCT_EXPORT_METHOD(socketClose:(int)identifier p:(RCTPromiseResolveBlock)resolve p:(RCTPromiseRejectBlock)reject) {
     
-    // Remove the socket from our active sockets. ARC will ensure it's closed properly.
+    // Find socket - if not found, socket is already closed
+    RNSocket* sock = [self.activeSockets objectForKey:[NSNumber numberWithInt:identifier]];
+    if (!sock)
+        return resolve(NULL);
+    
+    // Close it
+    [sock close];
+    
+    // Remove the socket from our active sockets.
     [self.activeSockets removeObjectForKey:[NSNumber numberWithInt:identifier]];
     resolve(NULL);
     

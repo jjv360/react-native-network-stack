@@ -31,17 +31,16 @@ static int nextSocketID = 0;
     return self;
     
 }
+    
+-(void) close {
+    if (self.fd != -1) close(self.fd);
+    if (self.fd6 != -1) close(self.fd6);
+    self.fd = -1;
+    self.fd6 = -1;
+}
 
 -(void) dealloc {
-    
-    // If we still have an active socket, close it
-    if (self.fd != -1)
-        close(self.fd);
-    
-    // Close any active IPv6 socket as well
-    if (self.fd6 != -1)
-        close(self.fd6);
-    
+    [self close];
 }
 
 -(NSDictionary*) json {

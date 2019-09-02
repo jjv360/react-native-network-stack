@@ -41,6 +41,8 @@ NS_ASSUME_NONNULL_BEGIN
     @property (strong) NSInputStream* inputStream;
     @property (strong) NSOutputStream* outputStream;
     
+    -(void) close;
+    
     -(NSDictionary*) json;
     
     // Buffers
