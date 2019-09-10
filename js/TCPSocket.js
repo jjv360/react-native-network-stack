@@ -5,6 +5,15 @@ import Socket from './Socket'
 /** Handles connection to a remote TCP socket and sending/receiving data. */
 export default class TCPSocket extends Socket {
 
+    /** Constructor */
+    constructor(info) {
+        super(info)
+
+        // List of promises to reject if the connection closes
+        this.pendingPromises = []
+
+    }
+
     /** 
      * Connect to a remote socket.
      * 
@@ -158,8 +167,19 @@ export default class TCPSocket extends Socket {
 
         }
 
+        // HACK: Create a promise which is resolved when either the write completes, or the connection is closed.
+        // For some reason on Android a write() with a large amount of data can block, and it doesn't unblock if 
+        // the remote connection is lost for a _long_ time.
+        let promiseObj = null
+        let promise = new Promise((resolve, reject) => {
+            promiseObj = { resolve, reject}
+        })
+
+        // Store promise
+        this.pendingPromises.push(promiseObj)
+
         // Pass request to native lib
-        return NativeModules.RNNetworkStack.tcpWrite(
+        NativeModules.RNNetworkStack.tcpWrite(
             this.id, 
             data, 
             !!opts.file,
@@ -171,7 +191,8 @@ export default class TCPSocket extends Socket {
                 eventSubscription.remove()
 
             // Pass on data
-            return val
+            promiseObj.resolve(val)
+            this.pendingPromises = this.pendingPromises.filter(o => o != promiseObj)
 
         }).catch(err => {
 
@@ -180,9 +201,13 @@ export default class TCPSocket extends Socket {
                 eventSubscription.remove()
 
             // Pass on error
-            throw err
+            promiseObj.reject(err)
+            this.pendingPromises = this.pendingPromises.filter(o => o != promiseObj)
 
         })
+
+        // Wait for promise
+        return promise
 
     }
 
@@ -207,6 +232,18 @@ export default class TCPSocket extends Socket {
 
         // Done
         return socket
+
+    }
+
+    /** Close the socket */
+    close() {
+        super.close()
+
+        // Reject pending promises
+        for (let promiseObj of this.pendingPromises)
+            promiseObj.reject(new Error('The connection was closed.'))
+        
+        this.pendingPromises = []
 
     }
 
