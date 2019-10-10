@@ -362,10 +362,14 @@ RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(BOOL)isFile p3:(NSStr
             NSString* filePath = data;
             
             // Read file attributes
-            NSError* err = NULL;
-            NSDictionary* fileInfo = [[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:&err];
+            // HACK: iOS 13 crashes when this is called on a background thread, so do this on the main thread
+            __block NSError* err = NULL;
+            __block NSDictionary* fileInfo = nil;
+            dispatch_sync(dispatch_get_main_queue(), ^{
+                fileInfo = [[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:&err];
+            });
             if (err)
-            return reject(@"file-error", err.localizedDescription, err);
+                return reject(@"file-error", err.localizedDescription, err);
             
             // Read file size
             NSNumber* fileSizeNumber = [fileInfo objectForKey:NSFileSize];
