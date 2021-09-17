@@ -273,7 +273,7 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
         // Read a single byte
         uint8_t b = 0;
         ssize_t amt = read(sock.fd, &b, 1);
-        if (amt == -1) {
+        if (amt == -1 || amt == 0) {
             
             // Socket closed while we were reading from it!
             [self.activeSockets removeObjectForKey:[NSNumber numberWithInt:sock.identifier]];
