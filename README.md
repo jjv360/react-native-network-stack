@@ -63,4 +63,5 @@ Send and receive data           | ✓       | ✓   |
 Bind to multicast address       | ✓       | ✓   |   
 **Data formats**                | ✓       | ✓   |   
 UTF8 String                     | ✓       | ✓   |   
-Base64 String                   |         |     |   
+Blob                            |         | ✓   |   
+ArrayBuffer                     |         | ✓   |   

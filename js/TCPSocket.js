@@ -124,17 +124,13 @@ export default class TCPSocket extends Socket {
     }
 
     /**
-     * Writes data to the socket. The data can be one of these types:
-     * - _string_ : Converts the string to UTF-8 encoded data and sends it.
-     * - _int_ : Sends the specified byte.
-     * - _string_ : Sends the data in the file at the specified path. See the `file: true` option.
-     * - _object_ : Specify options when sending:
-     *   - `file` : _(boolean)_ If true, `data` contains the path to a file. The contents of the file will be sent over the socket.
-     *   - `onProgress` : _(function(int))_ Called every so often with the amount of bytes transferred. Only applies to `file` transfers.
+     * Writes data to the socket.
      * 
-     * @param {string|int} data Data to send.
+     * @param {string|int|Blob} data Data to send. Can be a single byte, a UTF8 string, or a Blob.
      * @param {Object} opts Options object.
-     * @returns {Promise}
+     * @param {boolean} opts.file If true, `data` contains the path to a file. The contents of the file will be sent over the socket.
+     * @param {function} opts.onProgress Called every so often with the amount of bytes transferred. Only applies to `file` transfers.
+     * @returns {Promise} A promise which resolves once the data has been sent
      */
     async write(data, opts = {}) {
 
@@ -178,11 +174,74 @@ export default class TCPSocket extends Socket {
         // Store promise
         this.pendingPromises.push(promiseObj)
 
+        // Get data type
+        let dataType = 'utf8'
+        if (opts.file) {
+            
+            // Data is a single byte
+            dataType = 'file'
+
+        } else if (data === null || data === undefined) {
+            
+            // No data provided
+            throw new Error("No data provided to send.")
+
+        } else if (typeof data == 'number') {
+            
+            // Data is a single byte
+            dataType = 'byte'
+
+        } else if (typeof data == 'string') {
+
+            // Data is a UTF8 string
+            dataType = 'utf8'
+
+        } else if (data instanceof Blob) {
+
+            // Data is a Blob
+            dataType = 'base64'
+
+            // Decode the blob into a Base64 string
+            // TODO: This is nasty AF, find a better way of passing binary data around
+            let filereader = new FileReader()
+            filereader.readAsDataURL(data)
+            let dataURL = await new Promise((resolve, reject) => {
+                filereader.onload = e => {
+                    if (filereader.error) reject(filereader.error)
+                    else resolve(filereader.result)
+                }
+            })
+
+            // Extract just the base64 data
+            data = dataURL.substr(dataURL.indexOf('base64,') + 7)
+
+        } else if (data instanceof ArrayBuffer) {
+
+            // Data is an ArrayBuffer
+            dataType = 'base64'
+
+            // Decode the blob into a Base64 string
+            // TODO: This is nasty AF, find a better way of passing binary data around
+            data = Buffer.from(data).toString('base64')
+
+        } else if (typeof data == 'object') {
+
+            // Data is a UTF8-encoded JSON object
+            dataType = 'utf8'
+            data = JSON.stringify(data)
+
+        } else {
+
+            // Unknown data type
+            throw new Error("Unknown data type provided.")
+
+        }
+
         // Pass request to native lib
         NativeModules.RNNetworkStack.tcpWrite(
             this.id, 
             data, 
-            !!opts.file,
+            dataType,
             eventID
         ).then(val => {
 

@@ -343,7 +343,7 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
 }
 
 // Writes data to the socket
-RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(BOOL)isFile p3:(NSString*)progressID p4:(RCTPromiseResolveBlock)resolve p5:(RCTPromiseRejectBlock)reject) {
+RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(NSString*)dataType p3:(NSString*)progressID p4:(RCTPromiseResolveBlock)resolve p5:(RCTPromiseRejectBlock)reject) {
     
     // Find socket
     RNSocket* sock = [self.activeSockets objectForKey:[NSNumber numberWithInt:identifier]];
@@ -356,7 +356,7 @@ RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(BOOL)isFile p3:(NSStr
         // Get input stream to read data from
         NSInputStream* inputStream;
         long long totalSize = 0;
-        if (isFile) {
+        if ([dataType isEqual:@"file"]) {
             
             // User wants to write the data in the specified file to the socket. Open the file.
             NSString* filePath = data;
@@ -378,7 +378,7 @@ RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(BOOL)isFile p3:(NSStr
             // Open stream
             inputStream = [NSInputStream inputStreamWithFileAtPath:filePath];
             
-        } else if ([data isKindOfClass:[NSString class]]) {
+        } else if ([dataType isEqual:@"utf8"]) {
             
             // User wants to write some UTF8 encoded text to the socket. Create a stream for it.
             NSString* str = data;
@@ -386,7 +386,16 @@ RCT_EXPORT_METHOD(tcpWrite:(int)identifier p1:(id)data p2:(BOOL)isFile p3:(NSStr
             inputStream = [NSInputStream inputStreamWithData:strData];
             totalSize = strData.length;
             
-        } else if ([data isKindOfClass:[NSNumber class]]) {
+        } else if ([dataType isEqual:@"base64"]) {
+            
+            // Decode base64 to data
+            NSData* decodedData = [[NSData alloc] initWithBase64EncodedString:data options:0];
+            
+            // Create a stream for it
+            inputStream = [NSInputStream inputStreamWithData:decodedData];
+            totalSize = decodedData.length;
+            
+        } else if ([dataType isEqual:@"byte"]) {
             
             // User wants to write a single byte to the socket. Create a stream for it.
             NSNumber* num = data;

@@ -13,5 +13,13 @@
   "license": "",
   "dependencies": {
     "@babel/runtime": "^7.3.4"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.1",
+    "react-native": ">=0.60.0-rc.0 <1.0.x"
+  },
+  "devDependencies": {
+    "react": "17.0.1",
+    "react-native": "0.64.2"
   }
 }
