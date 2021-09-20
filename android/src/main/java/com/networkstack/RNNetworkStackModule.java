@@ -25,6 +25,7 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.apache.commons.codec.binary.Base64;
 
 /**
  * Interface to the JavaScript code.
@@ -319,7 +320,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
     // Writes data to the socket
     @ReactMethod public void tcpWrite(final int id,
                                       final Dynamic data,
-                                      final boolean isFile,
+                                      final String dataType,
                                       final String progressID,
                                       final Promise promise) {
 
@@ -342,7 +343,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
                 try {
 
                     // Check data type
-                    if (isFile) {
+                    if (dataType.equals("file")) {
 
                         // User wants to stream the specified file. Open it now.
                         File file = new File(data.asString());
@@ -371,7 +372,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
 
                         }
 
-                    } else if (data.getType() == ReadableType.Number) {
+                    } else if (dataType.equals("byte")) {
 
                         // User wants to send a single byte, check byte
                         int num = data.asInt();
@@ -381,10 +382,18 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
                         // Send it
                         si.socket.getOutputStream().write(num);
 
-                    } else if (data.getType() == ReadableType.String) {
+                    } else if (dataType.equals("utf8")) {
 
                         // User wants to send a string, convert to UTF-8 and send it
                         byte[] bytes = data.asString().getBytes("UTF-8");
+                        si.socket.getOutputStream().write(bytes);
+
+                    } else if (dataType.equals("base64")) {
+
+                        // User wants to send a binary payload that's in base64 format. Convert to data
+                        byte[] bytes = Base64.decodeBase64(data.asString().getBytes("UTF-8"));
+
+                        // Write it
                         si.socket.getOutputStream().write(bytes);
 
                     } else {
