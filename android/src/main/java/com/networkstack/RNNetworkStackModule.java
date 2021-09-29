@@ -123,7 +123,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
                                      final Dynamic terminator,
                                      final int maxLength,
                                      final String saveTo,
-                                     final boolean skip,
+                                     final String outType,
                                      final String progressID,
                                      final Promise promise) {
 
@@ -282,21 +282,26 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
 
                     }
 
-                    // If the user is piping the data elsewhere, stop here
-                    if (!ByteArrayOutputStream.class.isInstance(output)) {
+                    // Check how the user wants the output
+                    if (outType.equals("skip") || outType.equals("save")) {
 
                         // Done
                         promise.resolve(null);
                         return;
 
-                    }
-
-                    // TODO: Check how the user wants the output
-                    if (true) {
+                    } else if (outType.equals("utf8")) {
 
                         // User wants UTF-8 encoded text
                         ByteArrayOutputStream buffer = (ByteArrayOutputStream) output;
                         promise.resolve(buffer.toString("UTF-8"));
+
+                    } else if (outType.equals("buffer") || outType.equals("base64")) {
+
+                        // User wants Base64 encoded text
+                        ByteArrayOutputStream buffer = (ByteArrayOutputStream) output;
+                        byte[] bytes = buffer.toByteArray();
+                        String base64str = Base64.encodeBase64String(bytes);
+                        promise.resolve(base64str);
 
                     } else {
 

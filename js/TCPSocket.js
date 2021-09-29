@@ -57,6 +57,7 @@ export default class TCPSocket extends Socket {
      * - `length` : _(int)_ Reads data until the specified number of bytes have been read.
      * - `saveTo` : _(string)_ Write the data to the specified file path, instead of returning it.
      * - `skip` : _(boolean)_ If true, the data will be skipped instead of being returned.
+     * - `type` : _(string)_ Defaults to 'utf8'. One of: `utf8`, `buffer`
      * - `onProgress` : _(function(int))_ Called every so often with the amount of bytes transferred
      * 
      * @param {Object} opts Options object.
@@ -94,12 +95,13 @@ export default class TCPSocket extends Socket {
         }
 
         // Pass request to native lib
-        return NativeModules.RNNetworkStack.tcpRead(
+        let outType = opts.saveTo ? 'save' : opts.skip ? 'skip' : opts.type || 'utf8'
+        let out = await NativeModules.RNNetworkStack.tcpRead(
             this.id, 
             opts.until, 
             typeof opts.length == 'number' ? opts.length : -1,
             opts.saveTo,
-            !!opts.skip,
+            outType,
             eventID || ""
         ).then(val => {
 
@@ -120,6 +122,34 @@ export default class TCPSocket extends Socket {
             throw err
 
         })
+
+        // Check output type
+        if (outType == 'skip') {
+
+            // Nothing returned
+            return null
+
+        } else if (outType == 'save') {
+
+            // Nothing returned since data was saved to a file
+            return null
+
+        } else if (outType == 'utf8') {
+
+            // Return data as-is
+            return out
+
+        } else if (outType == 'buffer') {
+
+            // Convert base64 to a buffer
+            return Buffer.from(out, 'base64')
+
+        } else {
+
+            // Unknown data type
+            throw new Error("Unknown data type: " + outType)
+
+        }
 
     }
 

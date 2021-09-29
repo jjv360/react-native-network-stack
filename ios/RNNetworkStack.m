@@ -112,7 +112,7 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
                   p1:(id)terminator
                   p2:(int)maxLength
                   p3:(NSString*)saveTo
-                  p4:(BOOL)skip
+                  p4:(NSString*)outType
                   p5:(NSString*)progressID
                   p6:(RCTPromiseResolveBlock)resolve
                   p7:(RCTPromiseRejectBlock)reject) {
@@ -142,7 +142,6 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
             
             // User wants the data
             outStream = [NSOutputStream outputStreamToMemory];
-            
         }
         
         // Open output stream
@@ -208,13 +207,33 @@ RCT_EXPORT_METHOD(tcpRead:(int)identifier
             [outStream close];
             return resolve(NULL);
             
-        } else {
+        } else if ([outType isEqual:@"utf8"]) {
             
             // User wants text output, return it to them as UTF8
             NSData* data = [outStream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
             NSString* str = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
             [outStream close];
             return resolve(str);
+            
+        } else if ([outType isEqual:@"buffer"] || [outType isEqual:@"base64"]) {
+            
+            // Encode to Base64 string
+            NSData* data = [outStream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
+            NSString* base64str = [data base64EncodedStringWithOptions:0];
+            [outStream close];
+            return resolve(base64str);
+            
+        } else if ([outType isEqual:@"save"] || [outType isEqual:@"skip"]) {
+            
+            // Data should be skipped
+            [outStream close];
+            return resolve(@"");
+            
+        } else {
+            
+            // Unknown data format
+            [outStream close];
+            return reject(@"format-error", [@"Unknown data format requested: " stringByAppendingString:outType], NULL);
             
         }
         
