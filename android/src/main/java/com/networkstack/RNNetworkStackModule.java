@@ -300,7 +300,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
                         // User wants Base64 encoded text
                         ByteArrayOutputStream buffer = (ByteArrayOutputStream) output;
                         byte[] bytes = buffer.toByteArray();
-                        String base64str = Base64.encodeBase64String(bytes);
+                        String base64str = new String(Base64.encodeBase64(bytes));
                         promise.resolve(base64str);
 
                     } else {

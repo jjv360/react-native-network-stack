@@ -41,7 +41,8 @@ export default class Socket {
     /** Get the native event emitter */
     static get emitter() {
 
-        // Create if necessary
+        // Create if necessary. CAREFUL: When the library is linked locally with it's own node_modules/react-native copy, 
+        // the emitter doesn't work at all.
         if (!eventEmitter)
             eventEmitter = new NativeEventEmitter(NativeModules.RNNetworkStack)
 
