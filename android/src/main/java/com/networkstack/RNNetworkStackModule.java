@@ -121,11 +121,14 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
     // Reads data from the socket
     @ReactMethod public void tcpRead(final int id,
                                      final Dynamic terminator,
-                                     final int maxLength,
+                                     final double maxLengthDbl,
                                      final String saveTo,
                                      final String outType,
                                      final String progressID,
                                      final Promise promise) {
+
+        // Get fields
+        final long maxLength = (long) maxLengthDbl;
 
         // Get socket info
         final SocketInfo si = socketInfo.get(id);
@@ -170,12 +173,12 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
 
                         // Read specified amount of data
                         long lastUpdateTime = System.currentTimeMillis();
-                        int amountRead = 0;
-                        byte[] arr = new byte[1024*512];
+                        long amountRead = 0;
+                        byte[] arr = new byte[1024*1024*4];
                         while (amountRead < maxLength) {
 
                             // Read some data
-                            int len = Math.min(arr.length, maxLength - amountRead);
+                            int len = (int) Math.min(arr.length, maxLength - amountRead);
                             len = si.socket.getInputStream().read(arr, 0, len);
                             if (len == -1)
                                 throw new Exception("Socket closed before all data could be read.");
@@ -223,7 +226,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
                             throw new Exception("Terminator was empty!");
 
                         // Read char by char until we have the desired terminator
-                        int amountRead = 0;
+                        long amountRead = 0;
                         int lastTerminatorMatch = 0;
                         long lastUpdateTime = System.currentTimeMillis();
                         while (true) {
@@ -356,7 +359,7 @@ public class RNNetworkStackModule extends ReactContextBaseJavaModule {
 
                         // Start streaming it
                         long lastUpdateTime = System.currentTimeMillis();
-                        int amountRead = 0;
+                        long amountRead = 0;
                         byte[] buffer = new byte[1024*512];
                         while (true) {
 

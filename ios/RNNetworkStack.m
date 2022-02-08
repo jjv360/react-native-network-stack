@@ -110,17 +110,20 @@ RCT_EXPORT_METHOD(tcpConnect:(NSString*)host port:(int)port resolve:(RCTPromiseR
 
 RCT_EXPORT_METHOD(tcpRead:(int)identifier
                   p1:(id)terminator
-                  p2:(int)maxLength
+                  p2:(double)maxLengthDbl
                   p3:(NSString*)saveTo
                   p4:(NSString*)outType
                   p5:(NSString*)progressID
                   p6:(RCTPromiseResolveBlock)resolve
                   p7:(RCTPromiseRejectBlock)reject) {
+  
+    // Get fields
+    long maxLength = (long) maxLengthDbl;
     
     // Find socket
     RNSocket* sock = [self.activeSockets objectForKey:[NSNumber numberWithInt:identifier]];
     if (!sock)
-    return reject(@"socket-closed", @"This socket has been closed.", NULL);
+        return reject(@"socket-closed", @"This socket has been closed.", NULL);
     
     // Do on background thread
     dispatch_async(sock.readQueue, ^{
