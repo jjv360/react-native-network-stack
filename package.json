@@ -20,6 +20,6 @@
   },
   "devDependencies": {
     "react": "17.0.1",
-    "react-native": "0.64.2"
+    "react-native": "0.70.4"
   }
 }
